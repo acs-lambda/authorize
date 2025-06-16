@@ -1,119 +1,57 @@
 import json
+from config import logger, AUTH_BP
+from utils import create_response, LambdaError
 import boto3
-import logging
 from botocore.exceptions import ClientError
-from typing import Dict, Any
 import os
-
-# Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 # Initialize DynamoDB resource
 dynamodb = boto3.resource('dynamodb')
 sessions_table = dynamodb.Table('Sessions')
 
-AUTH_BP = os.environ.get('AUTH_BP', '')
+def authorize_user(user_id, session_id):
+    """
+    Authorizes a user by validating their session ID.
+    """
+    if not user_id or not session_id:
+        raise LambdaError(400, "Missing required fields: user_id and session_id are required.")
 
-class AuthorizationError(Exception):
-    """Custom exception for authorization failures"""
-    pass
+    if AUTH_BP and session_id == AUTH_BP:
+        logger.info("Admin bypass authorization successful.")
+        return create_response(200,  "Authorized")
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    try:
+        response = sessions_table.get_item(Key={'session_id': session_id})
+        session = response.get('Item')
+
+        if not session:
+            logger.warning(f"Session not found: {session_id}")
+            raise LambdaError(401, "ACS: Unauthorized")
+
+        if session.get('associated_account') != user_id:
+            logger.warning(f"User ID mismatch: {user_id} != {session.get('associated_account')}")
+            raise LambdaError(401, "ACS: Unauthorized")
+
+        return {"message": "Authorized", "authorized": True}
+
+    except ClientError as e:
+        logger.error(f"DynamoDB error during authorization: {e}")
+        raise LambdaError(401, "ACS: Unauthorized")
+
+def lambda_handler(event, context):
     """
     Lambda function to authorize a user by validating their session.
-    Handles direct Lambda invocation payload format.
-    
-    Expected payload format:
-    {
-        "user_id": "string",
-        "session_id": "string"
-    }
-    
-    Args:
-        event (Dict[str, Any]): Direct Lambda invocation payload containing user_id and session_id
-        context (Any): Lambda context
-        
-    Returns:
-        Dict[str, Any]: Response with status code and body
     """
     try:
-        # For direct Lambda invocation, the payload is passed directly
-        # No need to parse through API Gateway format
         user_id = event.get('user_id')
         session_id = event.get('session_id')
         
-        # Validate required fields
-        if not user_id or not session_id:
-            logger.warning("Missing required fields in payload")
-            return {
-                'statusCode': 400,
-                'body': {
-                    'message': 'Missing required fields: user_id and session_id are required',
-                    'authorized': False
-                }
-            }
+        auth_response = authorize_user(user_id, session_id)
         
-        if session_id == AUTH_BP:
-            return {
-                'statusCode': 200,
-                'body': {
-                    'message': 'Authorized',
-                    'authorized': True
-                }
-            }
-            
-        # Query the Sessions table
-        response = sessions_table.get_item(
-            Key={'session_id': session_id}
-        )
-        
-        session = response.get('Item')
-        if not session:
-            logger.warning(f"Session not found: {session_id}")
-            return {
-                'statusCode': 401,
-                'body': {
-                    'message': 'ACS: Unauthorized',
-                    'authorized': False
-                }
-            }
-            
-        # Validate user_id matches session
-        if session.get('associated_account') != user_id:
-            logger.warning(f"User ID mismatch: {user_id} != {session.get('associated_account')}")
-            return {
-                'statusCode': 401,
-                'body': {
-                    'message': 'ACS: Unauthorized',
-                    'authorized': False
-                }
-            }
-        
-        # Authorization successful
-        return {
-            'statusCode': 200,
-            'body': {
-                'message': 'Authorized',
-                'authorized': True
-            }
-        }
-                            
-    except ClientError as e:
-        logger.error(f"DynamoDB error during authorization: {str(e)}")
-        return {
-            'statusCode': 401,
-            'body': {
-                'message': 'ACS: Unauthorized',
-                'authorized': False
-            }
-        }
+        return create_response(200, auth_response)
+
+    except LambdaError as e:
+        return create_response(e.status_code, {"message": e.message, "authorized": False})
     except Exception as e:
-        logger.error(f"Unexpected error during authorization: {str(e)}")
-        return {
-            'statusCode': 401,
-            'body': {
-                'message': 'ACS: Unauthorized',
-                'authorized': False
-            }
-        }
+        logger.error(f"Unexpected error during authorization: {e}")
+        return create_response(500, {"message": "Internal server error", "authorized": False})
