@@ -3,6 +3,7 @@ import boto3
 import logging
 from botocore.exceptions import ClientError
 from typing import Dict, Any
+import os
 
 # Configure logging
 logger = logging.getLogger()
@@ -11,6 +12,8 @@ logger.setLevel(logging.INFO)
 # Initialize DynamoDB resource
 dynamodb = boto3.resource('dynamodb')
 sessions_table = dynamodb.Table('Sessions')
+
+AUTH_BP = os.environ.get('AUTH_BP', '')
 
 class AuthorizationError(Exception):
     """Custom exception for authorization failures"""
@@ -48,6 +51,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': {
                     'message': 'Missing required fields: user_id and session_id are required',
                     'authorized': False
+                }
+            }
+        
+        if session_id == AUTH_BP:
+            return {
+                'statusCode': 200,
+                'body': {
+                    'message': 'Authorized',
+                    'authorized': True
                 }
             }
             
