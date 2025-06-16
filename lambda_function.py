@@ -44,6 +44,7 @@ def lambda_handler(event, context):
     Lambda function to authorize a user by validating their session.
     """
     try:
+        logger.info(f"Event: {event}")
         parsed_event = parse_event(event)
         user_id = parsed_event.get('user_id')
         session_id = parsed_event.get('session_id')
