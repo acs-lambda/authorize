@@ -53,6 +53,7 @@ def lambda_handler(event, context):
         return create_response(200, auth_response)
 
     except LambdaError as e:
+        logger.error(f"LambdaError during authorization: {e}")
         return create_response(e.status_code, {"message": e.message, "authorized": False})
     except Exception as e:
         logger.error(f"Unexpected error during authorization: {e}")
