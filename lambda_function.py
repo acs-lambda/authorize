@@ -1,6 +1,6 @@
 import json
 from config import logger, AUTH_BP
-from utils import create_response, LambdaError
+from utils import create_response, LambdaError, parse_event
 import boto3
 from botocore.exceptions import ClientError
 import os
@@ -43,8 +43,9 @@ def lambda_handler(event, context):
     Lambda function to authorize a user by validating their session.
     """
     try:
-        user_id = event.get('user_id')
-        session_id = event.get('session_id')
+        parsed_event = parse_event(event)
+        user_id = parsed_event.get('user_id')
+        session_id = parsed_event.get('session_id')
         
         auth_response = authorize_user(user_id, session_id)
         
