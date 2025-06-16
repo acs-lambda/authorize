@@ -13,6 +13,7 @@ def authorize_user(user_id, session_id):
     """
     Authorizes a user by validating their session ID.
     """
+    logger.info(f"Authorizing user: {user_id} with session: {session_id}")
     if not user_id or not session_id:
         raise LambdaError(400, "Missing required fields: user_id and session_id are required.")
 
