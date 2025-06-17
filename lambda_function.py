@@ -46,8 +46,8 @@ def lambda_handler(event, context):
     try:
         logger.info(f"Event: {event}")
         parsed_event = parse_event(event)
-        user_id = parsed_event.get('user_id')
-        session_id = parsed_event.get('session_id')
+        user_id = parsed_event.get('user_id') or parsed_event.get('account_id') or parsed_event.get('account') or parsed_event.get('client_id')
+        session_id = parsed_event.get('session_id') or parsed_event.get('session') or parsed_event.get('cookies').get('session_id')
         
         auth_response = authorize_user(user_id, session_id)
         
