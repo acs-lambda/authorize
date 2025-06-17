@@ -47,7 +47,8 @@ def lambda_handler(event, context):
         logger.info(f"Event: {event}")
         parsed_event = parse_event(event)
         user_id = parsed_event.get('user_id') or parsed_event.get('account_id') or parsed_event.get('account') or parsed_event.get('client_id')
-        session_id = parsed_event.get('session_id') or parsed_event.get('session') or parsed_event.get('cookies').get('session_id')
+        cookies = parsed_event.get('cookies') or {}
+        session_id = parsed_event.get('session_id') or parsed_event.get('session') or cookies.get('session_id')
         
         auth_response = authorize_user(user_id, session_id)
         
@@ -57,5 +58,6 @@ def lambda_handler(event, context):
         logger.error(f"LambdaError during authorization: {e}")
         return create_response(e.status_code, {"message": e.message, "authorized": False})
     except Exception as e:
-        logger.error(f"Unexpected error during authorization: {e}")
+        import traceback
+        logger.error(f"Unexpected error during authorization: {e}\n{traceback.format_exc()}")
         return create_response(500, {"message": "Internal server error", "authorized": False})
